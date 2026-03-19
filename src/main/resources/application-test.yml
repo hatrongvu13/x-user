@@ -1,0 +1,73 @@
+# =============================================================================
+# application-test.yml — Test profile
+# Dùng H2 in-memory, không cần PostgreSQL / Redis / Kafka thật.
+# Active bằng: @ActiveProfiles("test") hoặc -Dspring.profiles.active=test
+# =============================================================================
+
+spring:
+
+  # ── H2 in-memory (thay PostgreSQL) ─────────────────────────────────────────
+  datasource:
+    url: jdbc:h2:mem:xuser_test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;NON_KEYWORDS=USER
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: false  # không cần console trong test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop   # tạo schema từ entity, xoá sau test
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # ── Tắt Liquibase — dùng ddl-auto create-drop ──────────────────────────────
+  liquibase:
+    enabled: false
+
+  # ── Tắt auto-config không cần trong test ───────────────────────────────────
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+# ── gRPC — dùng port ngẫu nhiên trong test ────────────────────────────────────
+spring.grpc:
+  server:
+    port: 0   # random port, tránh conflict khi chạy song song
+
+# ── Server ────────────────────────────────────────────────────────────────────
+server:
+  port: 0   # random port trong test
+
+# ── x-user config ─────────────────────────────────────────────────────────────
+x-user:
+  jwt:
+    # Secret đủ 64 ký tự cho HS512 — CHỈ dùng trong test
+    secret: "test-secret-key-exactly-64-chars-long-for-hs512-algorithm-test!!"
+    access-ttl-seconds: 3600
+    refresh-ttl-seconds: 86400
+    mfa-pending-ttl-seconds: 300
+    password-reset-ttl-seconds: 3600
+    email-verify-ttl-seconds: 86400
+    issuer: x-user-service-test
+
+  security:
+    max-failed-login-attempts: 5
+    account-lock-duration-seconds: 900
+    email-resend-cooldown-seconds: 60
+    allowed-origins: "http://localhost:3000"
+
+# ── Logging — im lặng hơn trong test ─────────────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.htv.xuser: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
