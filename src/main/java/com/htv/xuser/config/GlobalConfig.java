@@ -6,7 +6,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.ResourceBundleMessageSource;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.cors.CorsConfiguration;
@@ -43,9 +42,6 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class GlobalConfig {
 
-
-    private final UserDetailsService userDetailsService;
-
     // =========================================================================
     // i18n
     // =========================================================================
@@ -68,16 +64,6 @@ public class GlobalConfig {
                 Locale.forLanguageTag("vi")
         ));
         return resolver;
-    }
-
-    // =========================================================================
-    //  PASSWORD ENCODER
-    // =========================================================================
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        // BCrypt strength 12 ≈ 250ms/hash — đủ chậm để chống brute-force
-        return new BCryptPasswordEncoder(12);
     }
 
     // =========================================================================
