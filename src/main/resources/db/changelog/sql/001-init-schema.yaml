@@ -1,0 +1,804 @@
+#databaseChangeLog:
+#
+#  # ===========================================================================
+#  # 001 — Initial Schema
+#  # Author  : htv
+#  # Compat  : PostgreSQL (prod) + H2 (test/dev)
+#  #
+#  # Quy ước:
+#  #   - Không dùng timestamptz  → dùng TIMESTAMP (Liquibase tự map)
+#  #   - Không dùng schemaName   → tránh "schema public not found" trên H2
+#  #   - ALTER TABLE OWNER TO    → chỉ chạy trên context "prod"
+#  #   - Seed data               → context "!test" (bỏ qua khi chạy test)
+#  # ===========================================================================
+#
+#  # ---------------------------------------------------------------------------
+#  # 1. permissions
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-01-create-permissions
+#      author: htv
+#      changes:
+#        - createTable:
+#            tableName: permissions
+#            remarks: "Danh sách quyền theo resource:action"
+#            columns:
+#              - column:
+#                  name: id
+#                  type: uuid
+#                  constraints:
+#                    primaryKey: true
+#                    nullable: false
+#
+#              - column:
+#                  name: name
+#                  type: varchar(100)
+#                  constraints:
+#                    nullable: false
+#                    unique: true
+#                  remarks: "VD: USER:READ, ORDER:WRITE"
+#
+#              - column:
+#                  name: resource
+#                  type: varchar(50)
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: action
+#                  type: varchar(50)
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: description
+#                  type: varchar(255)
+#
+#              - column:
+#                  name: created_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: updated_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: created_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: updated_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: is_deleted
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: version
+#                  type: integer
+#                  defaultValueNumeric: 0
+#                  constraints:
+#                    nullable: false
+#
+#        - createIndex:
+#            indexName: idx_permissions_name
+#            tableName: permissions
+#            unique: true
+#            columns:
+#              - column:
+#                  name: name
+#
+#        - createIndex:
+#            indexName: idx_permissions_resource
+#            tableName: permissions
+#            columns:
+#              - column:
+#                  name: resource
+#
+#  # ALTER OWNER — chỉ chạy trên PostgreSQL production
+#  - changeSet:
+#      id: 001-01-owner-permissions
+#      author: htv
+#      context: "prod"
+#      changes:
+#        - sql:
+#            sql: "ALTER TABLE permissions OWNER TO htv;"
+#
+#  # ---------------------------------------------------------------------------
+#  # 2. roles
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-02-create-roles
+#      author: htv
+#      changes:
+#        - createTable:
+#            tableName: roles
+#            remarks: "Nhóm quyền, gắn vào user"
+#            columns:
+#              - column:
+#                  name: id
+#                  type: uuid
+#                  constraints:
+#                    primaryKey: true
+#                    nullable: false
+#
+#              - column:
+#                  name: name
+#                  type: varchar(50)
+#                  constraints:
+#                    nullable: false
+#                    unique: true
+#                  remarks: "VD: ROLE_ADMIN, ROLE_USER"
+#
+#              - column:
+#                  name: description
+#                  type: varchar(255)
+#
+#              - column:
+#                  name: is_system
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#                  remarks: "true = không cho xóa"
+#
+#              - column:
+#                  name: created_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: updated_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: created_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: updated_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: is_deleted
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: version
+#                  type: integer
+#                  defaultValueNumeric: 0
+#                  constraints:
+#                    nullable: false
+#
+#        - createIndex:
+#            indexName: idx_roles_name
+#            tableName: roles
+#            unique: true
+#            columns:
+#              - column:
+#                  name: name
+#
+#  - changeSet:
+#      id: 001-02-owner-roles
+#      author: htv
+#      context: "prod"
+#      changes:
+#        - sql:
+#            sql: "ALTER TABLE roles OWNER TO htv;"
+#
+#  # ---------------------------------------------------------------------------
+#  # 3. role_permissions
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-03-create-role-permissions
+#      author: htv
+#      changes:
+#        - createTable:
+#            tableName: role_permissions
+#            remarks: "Bảng trung gian: Role ↔ Permission"
+#            columns:
+#              - column:
+#                  name: role_id
+#                  type: uuid
+#                  constraints:
+#                    nullable: false
+#              - column:
+#                  name: permission_id
+#                  type: uuid
+#                  constraints:
+#                    nullable: false
+#
+#        - addPrimaryKey:
+#            tableName: role_permissions
+#            columnNames: role_id, permission_id
+#            constraintName: pk_role_permissions
+#
+#        - addForeignKeyConstraint:
+#            baseTableName: role_permissions
+#            baseColumnNames: role_id
+#            constraintName: fk_rp_role
+#            referencedTableName: roles
+#            referencedColumnNames: id
+#            onDelete: CASCADE
+#
+#        - addForeignKeyConstraint:
+#            baseTableName: role_permissions
+#            baseColumnNames: permission_id
+#            constraintName: fk_rp_permission
+#            referencedTableName: permissions
+#            referencedColumnNames: id
+#            onDelete: CASCADE
+#
+#        - createIndex:
+#            indexName: idx_role_permissions_role_id
+#            tableName: role_permissions
+#            columns:
+#              - column:
+#                  name: role_id
+#
+#        - createIndex:
+#            indexName: idx_role_permissions_permission_id
+#            tableName: role_permissions
+#            columns:
+#              - column:
+#                  name: permission_id
+#
+#  - changeSet:
+#      id: 001-03-owner-role-permissions
+#      author: htv
+#      context: "prod"
+#      changes:
+#        - sql:
+#            sql: "ALTER TABLE role_permissions OWNER TO htv;"
+#
+#  # ---------------------------------------------------------------------------
+#  # 4. users
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-04-create-users
+#      author: htv
+#      changes:
+#        - createTable:
+#            tableName: users
+#            remarks: "Tài khoản người dùng"
+#            columns:
+#              - column:
+#                  name: id
+#                  type: uuid
+#                  constraints:
+#                    primaryKey: true
+#                    nullable: false
+#
+#              - column:
+#                  name: email
+#                  type: varchar(255)
+#                  constraints:
+#                    nullable: false
+#                    unique: true
+#
+#              - column:
+#                  name: username
+#                  type: varchar(50)
+#                  constraints:
+#                    nullable: false
+#                    unique: true
+#
+#              - column:
+#                  name: password_hash
+#                  type: varchar(255)
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: first_name
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: last_name
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: phone_number
+#                  type: varchar(20)
+#
+#              - column:
+#                  name: avatar_url
+#                  type: varchar(500)
+#
+#              - column:
+#                  name: status
+#                  type: varchar(20)
+#                  defaultValue: PENDING
+#                  constraints:
+#                    nullable: false
+#                  remarks: "PENDING|ACTIVE|INACTIVE|SUSPENDED|BANNED"
+#
+#              # ── Email verification ────────────────────────────────────────
+#              - column:
+#                  name: email_verified
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: email_verified_at
+#                  type: TIMESTAMP
+#
+#              - column:
+#                  name: email_verify_token
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: email_verify_token_expires_at
+#                  type: TIMESTAMP
+#
+#              # ── MFA ────────────────────────────────────────────────────────
+#              - column:
+#                  name: mfa_enabled
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: mfa_type
+#                  type: varchar(20)
+#                  remarks: "TOTP | EMAIL_OTP"
+#
+#              - column:
+#                  name: mfa_totp_secret
+#                  type: varchar(255)
+#
+#              - column:
+#                  name: mfa_backup_codes
+#                  type: clob
+#                  remarks: "JSON array backup codes đã hash"
+#
+#              - column:
+#                  name: mfa_otp_code
+#                  type: varchar(10)
+#
+#              - column:
+#                  name: mfa_otp_expires_at
+#                  type: TIMESTAMP
+#
+#              - column:
+#                  name: mfa_otp_attempts
+#                  type: integer
+#                  defaultValueNumeric: 0
+#                  constraints:
+#                    nullable: false
+#
+#              # ── Password management ───────────────────────────────────────
+#              - column:
+#                  name: password_reset_token
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: password_reset_token_expires_at
+#                  type: TIMESTAMP
+#
+#              - column:
+#                  name: password_changed_at
+#                  type: TIMESTAMP
+#
+#              # ── Login security ────────────────────────────────────────────
+#              - column:
+#                  name: last_login_at
+#                  type: TIMESTAMP
+#
+#              - column:
+#                  name: last_login_ip
+#                  type: varchar(45)
+#
+#              - column:
+#                  name: failed_login_attempts
+#                  type: integer
+#                  defaultValueNumeric: 0
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: locked_until
+#                  type: TIMESTAMP
+#
+#              # ── BaseEntity ─────────────────────────────────────────────────
+#              - column:
+#                  name: created_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: updated_at
+#                  type: TIMESTAMP
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: created_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: updated_by
+#                  type: varchar(100)
+#
+#              - column:
+#                  name: is_deleted
+#                  type: boolean
+#                  defaultValueBoolean: false
+#                  constraints:
+#                    nullable: false
+#
+#              - column:
+#                  name: version
+#                  type: integer
+#                  defaultValueNumeric: 0
+#                  constraints:
+#                    nullable: false
+#
+#        - createIndex:
+#            indexName: idx_users_email
+#            tableName: users
+#            unique: true
+#            columns:
+#              - column:
+#                  name: email
+#
+#        - createIndex:
+#            indexName: idx_users_username
+#            tableName: users
+#            unique: true
+#            columns:
+#              - column:
+#                  name: username
+#
+#        - createIndex:
+#            indexName: idx_users_status
+#            tableName: users
+#            columns:
+#              - column:
+#                  name: status
+#
+#        - createIndex:
+#            indexName: idx_users_email_verify_token
+#            tableName: users
+#            columns:
+#              - column:
+#                  name: email_verify_token
+#
+#        - createIndex:
+#            indexName: idx_users_password_reset_token
+#            tableName: users
+#            columns:
+#              - column:
+#                  name: password_reset_token
+#
+#  - changeSet:
+#      id: 001-04-owner-users
+#      author: htv
+#      context: "prod"
+#      changes:
+#        - sql:
+#            sql: "ALTER TABLE users OWNER TO htv;"
+#
+#  # ---------------------------------------------------------------------------
+#  # 5. user_roles
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-05-create-user-roles
+#      author: htv
+#      changes:
+#        - createTable:
+#            tableName: user_roles
+#            remarks: "Bảng trung gian: User ↔ Role"
+#            columns:
+#              - column:
+#                  name: user_id
+#                  type: uuid
+#                  constraints:
+#                    nullable: false
+#              - column:
+#                  name: role_id
+#                  type: uuid
+#                  constraints:
+#                    nullable: false
+#
+#        - addPrimaryKey:
+#            tableName: user_roles
+#            columnNames: user_id, role_id
+#            constraintName: pk_user_roles
+#
+#        - addForeignKeyConstraint:
+#            baseTableName: user_roles
+#            baseColumnNames: user_id
+#            constraintName: fk_ur_user
+#            referencedTableName: users
+#            referencedColumnNames: id
+#            onDelete: CASCADE
+#
+#        - addForeignKeyConstraint:
+#            baseTableName: user_roles
+#            baseColumnNames: role_id
+#            constraintName: fk_ur_role
+#            referencedTableName: roles
+#            referencedColumnNames: id
+#            onDelete: RESTRICT
+#
+#        - createIndex:
+#            indexName: idx_user_roles_user_id
+#            tableName: user_roles
+#            columns:
+#              - column:
+#                  name: user_id
+#
+#        - createIndex:
+#            indexName: idx_user_roles_role_id
+#            tableName: user_roles
+#            columns:
+#              - column:
+#                  name: role_id
+#
+#  - changeSet:
+#      id: 001-05-owner-user-roles
+#      author: htv
+#      context: "prod"
+#      changes:
+#        - sql:
+#            sql: "ALTER TABLE user_roles OWNER TO htv;"
+#
+#  # ---------------------------------------------------------------------------
+#  # 6. Seed data — bỏ qua khi test (context: "!test")
+#  # ---------------------------------------------------------------------------
+#  - changeSet:
+#      id: 001-06-seed-roles
+#      author: htv
+#      context: "!test"
+#      changes:
+#        - insert:
+#            tableName: roles
+#            columns:
+#              - column: { name: id,          value:         "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: name,         value:         "ROLE_ADMIN" }
+#              - column: { name: description,  value:         "Quản trị viên hệ thống" }
+#              - column: { name: is_system,    valueBoolean:  true }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: roles
+#            columns:
+#              - column: { name: id,          value:         "00000000-0000-0000-0000-000000000002" }
+#              - column: { name: name,         value:         "ROLE_USER" }
+#              - column: { name: description,  value:         "Người dùng thông thường" }
+#              - column: { name: is_system,    valueBoolean:  true }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: roles
+#            columns:
+#              - column: { name: id,          value:         "00000000-0000-0000-0000-000000000003" }
+#              - column: { name: name,         value:         "ROLE_MODERATOR" }
+#              - column: { name: description,  value:         "Kiểm duyệt nội dung" }
+#              - column: { name: is_system,    valueBoolean:  true }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#  - changeSet:
+#      id: 001-07-seed-permissions
+#      author: htv
+#      context: "!test"
+#      changes:
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000001" }
+#              - column: { name: name,         value:         "USER:READ" }
+#              - column: { name: resource,     value:         "USER" }
+#              - column: { name: action,       value:         "READ" }
+#              - column: { name: description,  value:         "Xem thông tin user" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000002" }
+#              - column: { name: name,         value:         "USER:WRITE" }
+#              - column: { name: resource,     value:         "USER" }
+#              - column: { name: action,       value:         "WRITE" }
+#              - column: { name: description,  value:         "Tạo và sửa user" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000003" }
+#              - column: { name: name,         value:         "USER:DELETE" }
+#              - column: { name: resource,     value:         "USER" }
+#              - column: { name: action,       value:         "DELETE" }
+#              - column: { name: description,  value:         "Xóa user" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000004" }
+#              - column: { name: name,         value:         "ROLE:READ" }
+#              - column: { name: resource,     value:         "ROLE" }
+#              - column: { name: action,       value:         "READ" }
+#              - column: { name: description,  value:         "Xem danh sách role" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000005" }
+#              - column: { name: name,         value:         "ROLE:WRITE" }
+#              - column: { name: resource,     value:         "ROLE" }
+#              - column: { name: action,       value:         "WRITE" }
+#              - column: { name: description,  value:         "Tạo và sửa role" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000006" }
+#              - column: { name: name,         value:         "ROLE:DELETE" }
+#              - column: { name: resource,     value:         "ROLE" }
+#              - column: { name: action,       value:         "DELETE" }
+#              - column: { name: description,  value:         "Xóa role" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000007" }
+#              - column: { name: name,         value:         "PERMISSION:READ" }
+#              - column: { name: resource,     value:         "PERMISSION" }
+#              - column: { name: action,       value:         "READ" }
+#              - column: { name: description,  value:         "Xem danh sách permission" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#        - insert:
+#            tableName: permissions
+#            columns:
+#              - column: { name: id,          value:         "10000000-0000-0000-0000-000000000008" }
+#              - column: { name: name,         value:         "PERMISSION:WRITE" }
+#              - column: { name: resource,     value:         "PERMISSION" }
+#              - column: { name: action,       value:         "WRITE" }
+#              - column: { name: description,  value:         "Tạo và sửa permission" }
+#              - column: { name: is_deleted,   valueBoolean:  false }
+#              - column: { name: version,      valueNumeric:  0 }
+#              - column: { name: created_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: updated_at,   valueComputed: "CURRENT_TIMESTAMP" }
+#              - column: { name: created_by,   value:         "system" }
+#              - column: { name: updated_by,   value:         "system" }
+#
+#  - changeSet:
+#      id: 001-08-seed-role-permissions
+#      author: htv
+#      context: "!test"
+#      changes:
+#        # ROLE_ADMIN → tất cả permissions
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000001" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000002" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000003" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000004" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000005" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000006" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000007" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000001" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000008" }
+#
+#        # ROLE_USER → chỉ USER:READ
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000002" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000001" }
+#
+#        # ROLE_MODERATOR → USER:READ + USER:WRITE
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000003" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000001" }
+#        - insert:
+#            tableName: role_permissions
+#            columns:
+#              - column: { name: role_id, value: "00000000-0000-0000-0000-000000000003" }
+#              - column: { name: permission_id, value: "10000000-0000-0000-0000-000000000002" }

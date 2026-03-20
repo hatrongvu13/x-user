@@ -6,7 +6,6 @@
 
 spring:
 
-  # ── H2 in-memory (thay PostgreSQL) ─────────────────────────────────────────
   datasource:
     url: jdbc:h2:mem:xuser_test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;NON_KEYWORDS=USER
     driver-class-name: org.h2.Driver
@@ -15,41 +14,40 @@ spring:
 
   h2:
     console:
-      enabled: false  # không cần console trong test
+      enabled: false
 
   jpa:
     hibernate:
-      ddl-auto: create-drop   # tạo schema từ entity, xoá sau test
+      ddl-auto: none          # Liquibase quản lý schema
     show-sql: false
     properties:
       hibernate:
         format_sql: false
         dialect: org.hibernate.dialect.H2Dialect
 
-  # ── Tắt Liquibase — dùng ddl-auto create-drop ──────────────────────────────
   liquibase:
-    enabled: false
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    # context "test" → chạy tất cả changeset KHÔNG có "context: !test"
+    # Các changeset seed data có "context: !test" sẽ bị bỏ qua
+    # Các changeset OWNER TO có "context: prod" cũng bị bỏ qua
+    contexts: test
 
-  # ── Tắt auto-config không cần trong test ───────────────────────────────────
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
-# ── gRPC — dùng port ngẫu nhiên trong test ────────────────────────────────────
 spring.grpc:
   server:
-    port: 0   # random port, tránh conflict khi chạy song song
+    port: 0
 
-# ── Server ────────────────────────────────────────────────────────────────────
 server:
-  port: 0   # random port trong test
+  port: 0
 
-# ── x-user config ─────────────────────────────────────────────────────────────
 x-user:
   jwt:
-    # Secret đủ 64 ký tự cho HS512 — CHỈ dùng trong test
     secret: "test-secret-key-exactly-64-chars-long-for-hs512-algorithm-test!!"
     access-ttl-seconds: 3600
     refresh-ttl-seconds: 86400
@@ -64,10 +62,9 @@ x-user:
     email-resend-cooldown-seconds: 60
     allowed-origins: "http://localhost:3000"
 
-# ── Logging — im lặng hơn trong test ─────────────────────────────────────────
 logging:
   level:
     root: WARN
     com.htv.xuser: DEBUG
     org.springframework.security: WARN
-    org.hibernate.SQL: WARN
+    liquibase: WARN
