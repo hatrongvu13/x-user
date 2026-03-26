@@ -9,23 +9,23 @@ import java.util.Set;
 
 /**
  * UserEntity — bảng users
- *
+ * <p>
  * Tính năng:
- *  - Đăng nhập bằng email + password
- *  - MFA: TOTP (Google Authenticator) hoặc OTP qua email
- *  - Xác thực email khi đăng ký
- *  - Quản lý phiên: refresh token, thời gian login cuối
- *  - Phân quyền: nhiều Role, mỗi Role nhiều Permission
- *  - Soft delete + Optimistic locking (từ BaseEntity)
+ * - Đăng nhập bằng email + password
+ * - MFA: TOTP (Google Authenticator) hoặc OTP qua email
+ * - Xác thực email khi đăng ký
+ * - Quản lý phiên: refresh token, thời gian login cuối
+ * - Phân quyền: nhiều Role, mỗi Role nhiều Permission
+ * - Soft delete + Optimistic locking (từ BaseEntity)
  */
 @Entity
 @Table(
         name = "users",
         schema = "public",
         indexes = {
-                @Index(name = "idx_users_email",    columnList = "email",    unique = true),
+                @Index(name = "idx_users_email", columnList = "email", unique = true),
                 @Index(name = "idx_users_username", columnList = "username", unique = true),
-                @Index(name = "idx_users_status",   columnList = "status"),
+                @Index(name = "idx_users_status", columnList = "status"),
         }
 )
 @Getter
@@ -134,7 +134,7 @@ public class UserEntity extends BaseEntity {
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "user_roles",
-            joinColumns        = @JoinColumn(name = "user_id"),
+            joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"),
             indexes = {
                     @Index(name = "idx_user_roles_user_id", columnList = "user_id"),

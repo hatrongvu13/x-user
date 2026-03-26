@@ -183,6 +183,17 @@ public final class UserDto {
         private String sortDir = "desc";
     }
 
+    // Admin tạo user
+    @Getter @Setter
+    public static class AdminCreateRequest {
+        @NotBlank @Email @Size(max = 255) private String email;
+        @NotBlank @Size(min = 3, max = 50) private String username;
+        @NotBlank @Size(min = 8, max = 100) private String password;
+        @Size(max = 100) private String firstName;
+        @Size(max = 100) private String lastName;
+        private Set<UUID> roleIds;
+    }
+
     // =========================================================================
     // RESPONSE VARIANTS
     // =========================================================================
@@ -298,5 +309,33 @@ public final class UserDto {
         private String createdBy;
         private String updatedBy;
         private Set<RoleDto.SummaryResponse> roles; // kèm permissions
+    }
+
+    /** Chi tiết đầy đủ — admin */
+    @Getter @Builder
+    public static class DetailResponse {
+        private UUID        id;
+        private String      email;
+        private String      username;
+        private String      firstName;
+        private String      lastName;
+        private String      fullName;
+        private String      phoneNumber;
+        private String      avatarUrl;
+        private UserStatus  status;
+        private boolean     emailVerified;
+        private Instant     emailVerifiedAt;
+        private boolean     mfaEnabled;
+        private String      mfaType;
+        private int         failedLoginAttempts;
+        private Instant     lockedUntil;
+        private Instant     lastLoginAt;
+        private String      lastLoginIp;
+        private Instant     passwordChangedAt;
+        private Instant     createdAt;
+        private Instant     updatedAt;
+        private String      createdBy;
+        private Set<String> roles;
+        private Set<String> permissions;
     }
 }
